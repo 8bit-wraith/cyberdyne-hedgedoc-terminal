@@ -1,0 +1,105 @@
+version: "3.8"
+
+services:
+  database:
+    image: 'postgres:13.4-alpine'
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-hedgedoc}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_DB=${POSTGRES_DB:-hedgedoc}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - hedgedoc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hedgedoc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    labels:
+      - com.coollabs.project=cyberdyne-hedgedoc-terminal
+      - com.coollabs.description='CyberDyne CRT HedgeDoc with Keycloak'
+
+  app:
+    image: 'quay.io/hedgedoc/hedgedoc:1.10.3'
+    environment:
+      - CMD_DOMAIN=${SERVICE_FQDN_HEDGEDOC_3000}
+      - CMD_PROTOCOL_USESSL=true
+      - CMD_URL_ADDPORT=false
+      - CMD_PORT=3000
+      - CMD_SESSION_SECRET=${SERVICE_PASSWORD_64_SESSION}
+      - CMD_DB_URL=postgres://${POSTGRES_USER:-hedgedoc}:${SERVICE_PASSWORD_POSTGRES}@database:5432/${POSTGRES_DB:-hedgedoc}
+      - CMD_ALLOW_ANONYMOUS=${HEDGEDOC_ALLOW_ANONYMOUS:-false}
+      - CMD_ALLOW_ANONYMOUS_EDITS=false
+      - CMD_ALLOW_EMAIL_REGISTER=false
+      - CMD_EMAIL=false
+      - CMD_OAUTH2_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-8b-hedgedoc}
+      - CMD_OAUTH2_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - CMD_OAUTH2_AUTHORIZATION_URL=${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM:-8b-realm}/protocol/openid-connect/auth
+      - CMD_OAUTH2_TOKEN_URL=${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM:-8b-realm}/protocol/openid-connect/token
+      - CMD_OAUTH2_USER_PROFILE_URL=${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM:-8b-realm}/protocol/openid-connect/userinfo
+      - CMD_OAUTH2_SCOPE=openid profile email
+      - CMD_OAUTH2_USER_PROFILE_USERNAME_ATTR=preferred_username
+      - CMD_OAUTH2_USER_PROFILE_DISPLAY_NAME_ATTR=name
+      - CMD_OAUTH2_USER_PROFILE_EMAIL_ATTR=email
+      - CMD_OAUTH2_PROVIDER_NAME=${KEYCLOAK_PROVIDER_NAME:-CyberDyne Systems}
+      - CMD_OAUTH2_ALLOW_AUTO_REGISTER=true
+      - CMD_APP_NAME=${APP_NAME:-CyberDyne HedgeDoc Terminal}
+      - CMD_CUSTOM_CSS_PATH=/hedgedoc/custom/cyberpunk-crt.css
+      - CMD_SIGNIN_TEXT=${SIGNIN_TEXT:-// ALL DOCUMENTS ARE CyberDyne PROPERTY //}
+      - CMD_ALLOW_GRAVATAR=${ALLOW_GRAVATAR:-true}
+      - CMD_DEFAULT_PERMISSION=${DEFAULT_PERMISSION:-editable}
+      - CMD_ALLOW_FREEURL=true
+      - CMD_REQUIRE_FREEURL_AUTHENTICATION=true
+      - CMD_ALLOW_PDF_EXPORT=true
+      - CMD_IMAGE_UPLOAD_TYPE=filesystem
+      - CMD_DOCUMENT_MAX_LENGTH=${MAX_DOC_LENGTH:-100000}
+      - CMD_TOC=true
+      - CMD_MATHJAX=true
+      - CMD_MERMAID_ENABLE=true
+      - CMD_CSP_ENABLE=true
+      - CMD_HSTS_ENABLE=true
+      - CMD_HSTS_MAX_AGE=31536000
+      - CMD_HSTS_INCLUDE_SUBDOMAINS=true
+      - CMD_HSTS_PRELOAD=true
+      - CMD_COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
+      - CMD_COOKIE_SECURE=true
+      - NODE_ENV=${NODE_ENV:-production}
+      - CMD_WORKERS=${WORKERS:-0}
+      - CMD_LOG_LEVEL=${LOG_LEVEL:-info}
+      - CMD_DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
+      - CMD_USE_CDN=${USE_CDN:-false}
+      - CMD_EMAIL_FROM=${EMAIL_FROM:-no-reply@cdyne.net}
+    volumes:
+      - uploads-data:/hedgedoc/public/uploads
+      - type: bind
+        source: ./custom
+        target: /hedgedoc/custom
+        read_only: true
+      - type: bind
+        source: ./custom/cyberpunk-crt.css
+        target: /hedgedoc/custom/cyberpunk-crt.css
+        read_only: true
+    ports:
+      - '3000'
+    restart: always
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - hedgedoc-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  uploads-data:
+
+networks:
+  hedgedoc-network:
+    driver: bridge
