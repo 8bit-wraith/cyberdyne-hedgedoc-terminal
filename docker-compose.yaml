@@ -24,7 +24,8 @@ services:
   app:
     image: 'quay.io/hedgedoc/hedgedoc:1.10.3'
     environment:
-      - CMD_DOMAIN=${SERVICE_FQDN_HEDGEDOC_3000}
+      - _APP_URL=$SERVICE_FQDN_APPWRITE
+      - CMD_DOMAIN=8h.is
       - CMD_PROTOCOL_USESSL=true
       - CMD_URL_ADDPORT=false
       - CMD_PORT=3000
